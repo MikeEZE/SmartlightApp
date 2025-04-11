@@ -4,7 +4,7 @@ modules = ["python-3.11"]
 channel = "stable-24_05"
 
 [workflows]
-runButton = "Smart Light Controller Dev"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -18,6 +18,10 @@ args = "Smart Light Controller"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "smart_light_controller"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Web Light Controller"
 
 [[workflows.workflow]]
 name = "Smart Light Controller"
@@ -56,6 +60,21 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "QT_QPA_PLATFORM=offscreen python main.py"
+
+[[workflows.workflow]]
+name = "Web Light Controller"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python web_app.py"
+waitForPort = 5000
 
 [deployment]
 run = ["sh", "-c", "QT_QPA_PLATFORM=offscreen python main.py"]

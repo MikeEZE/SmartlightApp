@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Light Controller - Groups{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Light Groups</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3>Manage Light Groups</h3>
+                        <p class="lead">Control multiple lights together as a group.</p>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+                            <i class="bi bi-plus-circle"></i> Create Group
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if groups %}
+    <div class="row">
+        {% for group_id, group in groups.items() %}
+            <div class="col-lg-6 mb-4">
+                <div id="group-{{ group_id }}" class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                        <h5 class="card-title mb-0">{{ group.name }}</h5>
+                        <div>
+                            <button 
+                                class="btn btn-sm btn-primary me-1" 
+                                onclick="toggleGroup('{{ group_id }}', true)"
+                                title="Turn all lights in this group on"
+                            >
+                                <i class="bi bi-lightbulb-fill"></i> All On
+                            </button>
+                            <button 
+                                class="btn btn-sm btn-dark me-1" 
+                                onclick="toggleGroup('{{ group_id }}', false)"
+                                title="Turn all lights in this group off"
+                            >
+                                <i class="bi bi-lightbulb"></i> All Off
+                            </button>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li>
+                                        <a class="dropdown-item" href="#" onclick="editGroup('{{ group_id }}')">
+                                            <i class="bi bi-pencil"></i> Edit Group
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item text-danger" href="#" onclick="deleteGroup('{{ group_id }}')">
+                                            <i class="bi bi-trash"></i> Delete Group
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Lights in this group:</strong></p>
+                        <ul class="list-group">
+                            {% for light_id in group.lights %}
+                                {% if light_id in lights %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-lightbulb{% if lights[light_id].state.on %}-fill text-warning{% endif %}"></i>
+                                            {{ lights[light_id].name }}
+                                        </div>
+                                        <span class="badge {% if lights[light_id].state.on %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {% if lights[light_id].state.on %}ON{% else %}OFF{% endif %}
+                                        </span>
+                                    </li>
+                                {% else %}
+                                    <li class="list-group-item text-muted">
+                                        <i class="bi bi-question-circle"></i> Unknown light ({{ light_id }})
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                        
+                        {% if group.lights|length > 0 %}
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Group Brightness</label>
+                                    <input 
+                                        type="range" 
+                                        class="form-range" 
+                                        min="0" 
+                                        max="100" 
+                                        value="100" 
+                                        id="brightness-{{ group_id }}" 
+                                        data-group-id="{{ group_id }}"
+                                        onchange="setGroupBrightness(this)"
+                                    >
+                                    <div class="d-flex justify-content-between">
+                                        <small>0%</small>
+                                        <small>100%</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Group Color</label>
+                                    <div>
+                                        {% for color_name, hue in [
+                                            ('Red', 0),
+                                            ('Orange', 30),
+                                            ('Yellow', 60),
+                                            ('Green', 120),
+                                            ('Teal', 180),
+                                            ('Blue', 240),
+                                            ('Purple', 270),
+                                            ('Pink', 300)
+                                        ] %}
+                                            <button 
+                                                class="btn btn-sm rounded-circle mb-1" 
+                                                style="width: 30px; height: 30px; background-color: hsl({{ hue }}, 100%, 50%);"
+                                                title="{{ color_name }}"
+                                                data-group-id="{{ group_id }}"
+                                                data-hue="{{ hue }}"
+                                                onclick="setGroupColor(this)"
+                                            ></button>
+                                        {% endfor %}
+                                        <button 
+                                            class="btn btn-sm btn-light border rounded-circle mb-1" 
+                                            style="width: 30px; height: 30px;"
+                                            title="White"
+                                            data-group-id="{{ group_id }}"
+                                            data-hue="0"
+                                            data-saturation="0"
+                                            onclick="setGroupColor(this, true)"
+                                        >
+                                            <i class="bi bi-sun-fill text-warning" style="font-size: 0.8rem;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle-fill"></i> No groups created yet.
+        Click the "Create Group" button to create a new group of lights.
+    </div>
+{% endif %}
+
+<!-- Create Group Modal -->
+<div class="modal fade" id="createGroupModal" tabindex="-1" aria-labelledby="createGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createGroupModalLabel">Create New Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createGroupForm">
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">Group Name</label>
+                        <input type="text" class="form-control" id="groupName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Lights</label>
+                        {% if lights %}
+                            <div class="list-group">
+                                {% for light_id, light in lights.items() %}
+                                    <label class="list-group-item">
+                                        <input 
+                                            class="form-check-input me-1" 
+                                            type="checkbox" 
+                                            value="{{ light_id }}"
+                                            name="groupLights"
+                                        >
+                                        {{ light.name }}
+                                        <span class="badge {% if light.state.on %}bg-success{% else %}bg-secondary{% endif %} ms-1">
+                                            {% if light.state.on %}ON{% else %}OFF{% endif %}
+                                        </span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                No lights available. Please discover lights first.
+                            </div>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createGroup()">Create Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Group Modal -->
+<div class="modal fade" id="editGroupModal" tabindex="-1" aria-labelledby="editGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editGroupModalLabel">Edit Group</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editGroupForm">
+                    <input type="hidden" id="editGroupId">
+                    <div class="mb-3">
+                        <label for="editGroupName" class="form-label">Group Name</label>
+                        <input type="text" class="form-control" id="editGroupName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Select Lights</label>
+                        {% if lights %}
+                            <div class="list-group" id="editGroupLightsList">
+                                {% for light_id, light in lights.items() %}
+                                    <label class="list-group-item">
+                                        <input 
+                                            class="form-check-input me-1" 
+                                            type="checkbox" 
+                                            value="{{ light_id }}"
+                                            name="editGroupLights"
+                                        >
+                                        {{ light.name }}
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                No lights available. Please discover lights first.
+                            </div>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateGroup()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteGroupModal" tabindex="-1" aria-labelledby="deleteGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteGroupModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this group? This action cannot be undone.</p>
+                <input type="hidden" id="deleteGroupId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Delete Group</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleGroup(groupId, on) {
+        fetch(`/api/groups/${groupId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ on: on })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload to see the changes
+                window.location.reload();
+            }
+        });
+    }
+    
+    function setGroupBrightness(element) {
+        const groupId = element.dataset.groupId;
+        const brightness = parseInt(element.value);
+        
+        fetch(`/api/groups/${groupId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ brightness: brightness })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update UI if needed
+            }
+        });
+    }
+    
+    function setGroupColor(element, isWhite = false) {
+        const groupId = element.dataset.groupId;
+        const hue = parseInt(element.dataset.hue);
+        const saturation = isWhite ? 0 : 100;
+        
+        fetch(`/api/groups/${groupId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                hue: hue,
+                saturation: saturation
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload to see the changes after a short delay
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            }
+        });
+    }
+    
+    function createGroup() {
+        const name = document.getElementById('groupName').value;
+        if (!name) {
+            alert('Please enter a group name');
+            return;
+        }
+        
+        const lightCheckboxes = document.querySelectorAll('input[name="groupLights"]:checked');
+        if (lightCheckboxes.length === 0) {
+            alert('Please select at least one light');
+            return;
+        }
+        
+        const lights = Array.from(lightCheckboxes).map(cb => cb.value);
+        
+        fetch('/api/groups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                lights: lights
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
+                modal.hide();
+                
+                // Show success message and reload
+                showAlert('Group created successfully!', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                alert('Error creating group: ' + data.error);
+            }
+        });
+    }
+    
+    function editGroup(groupId) {
+        // Populate the edit form
+        fetch(`/api/groups/${groupId}`)
+            .then(response => response.json())
+            .then(group => {
+                document.getElementById('editGroupId').value = groupId;
+                document.getElementById('editGroupName').value = group.name;
+                
+                // Check the lights that are in the group
+                const checkboxes = document.querySelectorAll('input[name="editGroupLights"]');
+                checkboxes.forEach(cb => {
+                    cb.checked = group.lights.includes(cb.value);
+                });
+                
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+                modal.show();
+            });
+    }
+    
+    function updateGroup() {
+        const groupId = document.getElementById('editGroupId').value;
+        const name = document.getElementById('editGroupName').value;
+        
+        if (!name) {
+            alert('Please enter a group name');
+            return;
+        }
+        
+        const lightCheckboxes = document.querySelectorAll('input[name="editGroupLights"]:checked');
+        if (lightCheckboxes.length === 0) {
+            alert('Please select at least one light');
+            return;
+        }
+        
+        const lights = Array.from(lightCheckboxes).map(cb => cb.value);
+        
+        fetch(`/api/groups/${groupId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: name,
+                lights: lights
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editGroupModal'));
+                modal.hide();
+                
+                // Show success message and reload
+                showAlert('Group updated successfully!', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                alert('Error updating group: ' + data.error);
+            }
+        });
+    }
+    
+    function deleteGroup(groupId) {
+        document.getElementById('deleteGroupId').value = groupId;
+        const modal = new bootstrap.Modal(document.getElementById('deleteGroupModal'));
+        modal.show();
+    }
+    
+    function confirmDeleteGroup() {
+        const groupId = document.getElementById('deleteGroupId').value;
+        
+        fetch(`/api/groups/${groupId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteGroupModal'));
+                modal.hide();
+                
+                // Show success message and reload
+                showAlert('Group deleted successfully!', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                alert('Error deleting group: ' + data.error);
+            }
+        });
+    }
+    
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alerts-container');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        alertContainer.appendChild(alert);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            alert.classList.remove('show');
+            setTimeout(() => {
+                alertContainer.removeChild(alert);
+            }, 150);
+        }, 5000);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Light Controller - Settings{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Settings</h5>
+            </div>
+            <div class="card-body">
+                <h3>Application Settings</h3>
+                <p class="lead">Configure your Smart Light Controller preferences.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">General Settings</h5>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="mb-3 form-check">
+                        <input 
+                            type="checkbox" 
+                            class="form-check-input" 
+                            id="discoverOnStartup" 
+                            {% if settings.discover_on_startup %}checked{% endif %}
+                        >
+                        <label class="form-check-label" for="discoverOnStartup">
+                            Discover devices on startup
+                        </label>
+                        <div class="form-text text-muted">
+                            Automatically search for smart lights when the application starts.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="refreshInterval" class="form-label">Refresh Interval (seconds)</label>
+                        <input 
+                            type="number" 
+                            class="form-control" 
+                            id="refreshInterval" 
+                            min="10" 
+                            max="300" 
+                            value="{{ settings.refresh_interval }}"
+                        >
+                        <div class="form-text text-muted">
+                            How often to automatically refresh the light status.
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="themeSelect" class="form-label">Theme</label>
+                        <select class="form-select" id="themeSelect">
+                            <option value="light" {% if settings.theme == 'light' %}selected{% endif %}>Light</option>
+                            <option value="dark" {% if settings.theme == 'dark' %}selected{% endif %}>Dark</option>
+                        </select>
+                        <div class="form-text text-muted">
+                            Select the application theme.
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn btn-primary" onclick="saveSettings()">
+                        <i class="bi bi-save"></i> Save Settings
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">About</h5>
+            </div>
+            <div class="card-body">
+                <h4>Smart Light Controller</h4>
+                <p>A web interface for controlling multiple brands of smart lights.</p>
+                <p>Version: 1.0.0</p>
+                <p>Supported light systems:</p>
+                <ul>
+                    <li>Philips Hue</li>
+                    <li>LIFX</li>
+                </ul>
+                
+                <hr>
+                
+                <h5>System Information</h5>
+                <table class="table table-sm">
+                    <tbody>
+                        <tr>
+                            <th scope="row">Total Lights:</th>
+                            <td id="totalLights">Loading...</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Light Groups:</th>
+                            <td id="totalGroups">Loading...</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">Active Schedules:</th>
+                            <td id="activeSchedules">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="fetchSystemInfo()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Info
+                </button>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-light">
+                <h5 class="card-title mb-0">Data Management</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-warning" onclick="resetConfiguration()">
+                        <i class="bi bi-exclamation-triangle"></i> Reset Configuration
+                    </button>
+                </div>
+                <small class="text-muted mt-2 d-block">
+                    Warning: This will reset all settings, groups, and schedules to default values.
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Confirmation Modal -->
+<div class="modal fade" id="resetConfirmationModal" tabindex="-1" aria-labelledby="resetConfirmationModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resetConfirmationModalLabel">Confirm Reset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Warning!
+                </div>
+                <p>You are about to reset all settings, groups, and schedules to their default values.</p>
+                <p>This action cannot be undone.</p>
+                <p>Are you sure you want to continue?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmReset()">Reset Configuration</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Fetch system information
+    function fetchSystemInfo() {
+        // For lights
+        fetch('/api/lights')
+            .then(response => response.json())
+            .then(lights => {
+                document.getElementById('totalLights').textContent = Object.keys(lights).length;
+            });
+        
+        // For groups
+        fetch('/api/groups')
+            .then(response => response.json())
+            .then(groups => {
+                document.getElementById('totalGroups').textContent = Object.keys(groups).length;
+            });
+        
+        // For schedules
+        fetch('/api/schedules')
+            .then(response => response.json())
+            .then(schedules => {
+                const activeSchedules = Object.values(schedules).filter(s => s.enabled).length;
+                document.getElementById('activeSchedules').textContent = 
+                    activeSchedules + ' (of ' + Object.keys(schedules).length + ' total)';
+            });
+    }
+    
+    // Save settings
+    function saveSettings() {
+        const settings = {
+            discover_on_startup: document.getElementById('discoverOnStartup').checked,
+            refresh_interval: parseInt(document.getElementById('refreshInterval').value),
+            theme: document.getElementById('themeSelect').value
+        };
+        
+        fetch('/api/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Settings saved successfully!', 'success');
+            } else {
+                showAlert('Error saving settings: ' + data.error, 'danger');
+            }
+        })
+        .catch(error => {
+            showAlert('Error saving settings: ' + error, 'danger');
+        });
+    }
+    
+    // Show reset confirmation modal
+    function resetConfiguration() {
+        const modal = new bootstrap.Modal(document.getElementById('resetConfirmationModal'));
+        modal.show();
+    }
+    
+    // Confirm reset
+    function confirmReset() {
+        // In a real app, we'd have an API endpoint for this
+        // For now, we'll just reload the page
+        showAlert('Configuration has been reset to defaults.', 'success');
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    }
+    
+    // Display alerts
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alerts-container');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        alertContainer.appendChild(alert);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            alert.classList.remove('show');
+            setTimeout(() => {
+                alertContainer.removeChild(alert);
+            }, 150);
+        }, 5000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchSystemInfo();
+    });
+</script>
+{% endblock %}

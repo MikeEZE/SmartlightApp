@@ -1,0 +1,746 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Light Controller - Schedules{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Schedules</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h3>Automate Your Lights</h3>
+                        <p class="lead">Create schedules to turn lights on and off automatically.</p>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createScheduleModal">
+                            <i class="bi bi-plus-circle"></i> Create Schedule
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if schedules %}
+    <div class="row">
+        {% for schedule_id, schedule in schedules.items() %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div id="schedule-{{ schedule_id }}" class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center {% if schedule.enabled %}bg-light{% else %}bg-secondary text-white{% endif %}">
+                        <h5 class="card-title mb-0">{{ schedule.name }}</h5>
+                        <div class="form-check form-switch">
+                            <input 
+                                class="form-check-input" 
+                                type="checkbox" 
+                                role="switch" 
+                                id="switch-{{ schedule_id }}" 
+                                {% if schedule.enabled %}checked{% endif %}
+                                data-schedule-id="{{ schedule_id }}"
+                                onchange="toggleSchedule(this)"
+                            >
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <i class="bi bi-clock"></i>
+                            <strong>Time:</strong> {{ schedule.time }}
+                            
+                            {% if schedule.days %}
+                                <div class="mt-2">
+                                    <strong>Days:</strong>
+                                    <div>
+                                        {% for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+                                            <span class="badge {% if day in schedule.days %}bg-primary{% else %}bg-light text-dark{% endif %} me-1">
+                                                {{ day[:3]|capitalize }}
+                                            </span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Actions:</strong>
+                            <ul class="list-group mt-2">
+                                {% for action in schedule.actions %}
+                                    <li class="list-group-item">
+                                        {% if action.type == 'light' %}
+                                            {% if action.light_id in lights %}
+                                                <i class="bi bi-lightbulb{% if action.state.on %}-fill text-warning{% endif %}"></i>
+                                                {{ lights[action.light_id].name }}: 
+                                                {% if action.state.on %}
+                                                    Turn <span class="badge bg-success">ON</span>
+                                                    {% if action.state.brightness is defined %}
+                                                        at {{ action.state.brightness }}% brightness
+                                                    {% endif %}
+                                                {% else %}
+                                                    Turn <span class="badge bg-secondary">OFF</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-question-circle"></i> Unknown light
+                                            {% endif %}
+                                        {% elif action.type == 'group' %}
+                                            {% if action.group_id in groups %}
+                                                <i class="bi bi-grid-3x3-gap-fill"></i>
+                                                {{ groups[action.group_id].name }}: 
+                                                {% if action.state.on %}
+                                                    Turn <span class="badge bg-success">ON</span>
+                                                    {% if action.state.brightness is defined %}
+                                                        at {{ action.state.brightness }}% brightness
+                                                    {% endif %}
+                                                {% else %}
+                                                    Turn <span class="badge bg-secondary">OFF</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-question-circle"></i> Unknown group
+                                            {% endif %}
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editSchedule('{{ schedule_id }}')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteSchedule('{{ schedule_id }}')">
+                                <i class="bi bi-trash"></i> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle-fill"></i> No schedules created yet.
+        Click the "Create Schedule" button to create a new schedule.
+    </div>
+{% endif %}
+
+<!-- Create Schedule Modal -->
+<div class="modal fade" id="createScheduleModal" tabindex="-1" aria-labelledby="createScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createScheduleModalLabel">Create New Schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createScheduleForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="scheduleName" class="form-label">Schedule Name</label>
+                            <input type="text" class="form-control" id="scheduleName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="scheduleTime" class="form-label">Time</label>
+                            <input type="time" class="form-control" id="scheduleTime" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Days</label>
+                        <div class="d-flex flex-wrap">
+                            {% for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+                                <div class="form-check me-3">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        value="{{ day }}" 
+                                        id="day-{{ day }}" 
+                                        name="scheduleDays"
+                                        checked
+                                    >
+                                    <label class="form-check-label" for="day-{{ day }}">
+                                        {{ day|capitalize }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectWeekdays()">Weekdays</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectWeekend()">Weekend</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllDays()">All Days</button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Actions</label>
+                        <div id="scheduleActions">
+                            <div class="action-item card mb-2">
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Type</label>
+                                            <select class="form-select action-type" onchange="updateActionFields(this)">
+                                                <option value="light">Light</option>
+                                                <option value="group">Group</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="col-md-4 light-field">
+                                            <label class="form-label">Light</label>
+                                            <select class="form-select action-light">
+                                                {% for light_id, light in lights.items() %}
+                                                    <option value="{{ light_id }}">{{ light.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="col-md-4 group-field d-none">
+                                            <label class="form-label">Group</label>
+                                            <select class="form-select action-group">
+                                                {% for group_id, group in groups.items() %}
+                                                    <option value="{{ group_id }}">{{ group.name }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="col-md-4">
+                                            <label class="form-label">Action</label>
+                                            <select class="form-select action-state" onchange="updateBrightnessField(this)">
+                                                <option value="on">Turn On</option>
+                                                <option value="off">Turn Off</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row mt-2 brightness-field">
+                                        <div class="col-md-8">
+                                            <label class="form-label">Brightness</label>
+                                            <input type="range" class="form-range action-brightness" min="1" max="100" value="100">
+                                            <div class="d-flex justify-content-between">
+                                                <small>1%</small>
+                                                <small>50%</small>
+                                                <small>100%</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-4 d-flex align-items-end">
+                                            <button type="button" class="btn btn-sm btn-outline-danger w-100" onclick="removeAction(this)">
+                                                <i class="bi bi-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addAction()">
+                            <i class="bi bi-plus-circle"></i> Add Action
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createSchedule()">Create Schedule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Schedule Modal -->
+<div class="modal fade" id="editScheduleModal" tabindex="-1" aria-labelledby="editScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editScheduleModalLabel">Edit Schedule</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editScheduleForm">
+                    <input type="hidden" id="editScheduleId">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="editScheduleName" class="form-label">Schedule Name</label>
+                            <input type="text" class="form-control" id="editScheduleName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="editScheduleTime" class="form-label">Time</label>
+                            <input type="time" class="form-control" id="editScheduleTime" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Days</label>
+                        <div class="d-flex flex-wrap">
+                            {% for day in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] %}
+                                <div class="form-check me-3">
+                                    <input 
+                                        class="form-check-input" 
+                                        type="checkbox" 
+                                        value="{{ day }}" 
+                                        id="edit-day-{{ day }}" 
+                                        name="editScheduleDays"
+                                    >
+                                    <label class="form-check-label" for="edit-day-{{ day }}">
+                                        {{ day|capitalize }}
+                                    </label>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectEditWeekdays()">Weekdays</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" onclick="selectEditWeekend()">Weekend</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectEditAllDays()">All Days</button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Actions</label>
+                        <div id="editScheduleActions">
+                            <!-- Actions will be populated dynamically -->
+                        </div>
+                        
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="addEditAction()">
+                            <i class="bi bi-plus-circle"></i> Add Action
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateSchedule()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteScheduleModal" tabindex="-1" aria-labelledby="deleteScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteScheduleModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this schedule? This action cannot be undone.</p>
+                <input type="hidden" id="deleteScheduleId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteSchedule()">Delete Schedule</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle schedule enabled state
+    function toggleSchedule(element) {
+        const scheduleId = element.dataset.scheduleId;
+        const enabled = element.checked;
+        
+        fetch(`/api/schedules/${scheduleId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ enabled: enabled })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the card header
+                const header = document.querySelector(`#schedule-${scheduleId} .card-header`);
+                if (header) {
+                    if (enabled) {
+                        header.classList.remove('bg-secondary', 'text-white');
+                        header.classList.add('bg-light');
+                    } else {
+                        header.classList.add('bg-secondary', 'text-white');
+                        header.classList.remove('bg-light');
+                    }
+                }
+            }
+        });
+    }
+    
+    // Add a new action to the schedule form
+    function addAction() {
+        const template = document.querySelector('#scheduleActions .action-item').cloneNode(true);
+        
+        // Reset values in the cloned template
+        template.querySelectorAll('select').forEach(select => {
+            select.selectedIndex = 0;
+        });
+        
+        // Add the new action item
+        document.getElementById('scheduleActions').appendChild(template);
+    }
+    
+    // Remove an action from the schedule form
+    function removeAction(button) {
+        const actionItems = document.querySelectorAll('#scheduleActions .action-item');
+        if (actionItems.length > 1) {
+            button.closest('.action-item').remove();
+        } else {
+            alert('You must have at least one action in the schedule.');
+        }
+    }
+    
+    // Update fields based on action type
+    function updateActionFields(select) {
+        const actionItem = select.closest('.action-item');
+        const lightField = actionItem.querySelector('.light-field');
+        const groupField = actionItem.querySelector('.group-field');
+        
+        if (select.value === 'light') {
+            lightField.classList.remove('d-none');
+            groupField.classList.add('d-none');
+        } else {
+            lightField.classList.add('d-none');
+            groupField.classList.remove('d-none');
+        }
+    }
+    
+    // Update brightness field based on action state
+    function updateBrightnessField(select) {
+        const actionItem = select.closest('.action-item');
+        const brightnessField = actionItem.querySelector('.brightness-field');
+        
+        if (select.value === 'on') {
+            brightnessField.classList.remove('d-none');
+        } else {
+            brightnessField.classList.add('d-none');
+        }
+    }
+    
+    // Select weekdays
+    function selectWeekdays() {
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+        document.querySelectorAll('input[name="scheduleDays"]').forEach(checkbox => {
+            checkbox.checked = days.includes(checkbox.value);
+        });
+    }
+    
+    // Select weekend
+    function selectWeekend() {
+        const days = ['saturday', 'sunday'];
+        document.querySelectorAll('input[name="scheduleDays"]').forEach(checkbox => {
+            checkbox.checked = days.includes(checkbox.value);
+        });
+    }
+    
+    // Select all days
+    function selectAllDays() {
+        document.querySelectorAll('input[name="scheduleDays"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    }
+    
+    // Select weekdays for edit form
+    function selectEditWeekdays() {
+        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+        document.querySelectorAll('input[name="editScheduleDays"]').forEach(checkbox => {
+            checkbox.checked = days.includes(checkbox.value);
+        });
+    }
+    
+    // Select weekend for edit form
+    function selectEditWeekend() {
+        const days = ['saturday', 'sunday'];
+        document.querySelectorAll('input[name="editScheduleDays"]').forEach(checkbox => {
+            checkbox.checked = days.includes(checkbox.value);
+        });
+    }
+    
+    // Select all days for edit form
+    function selectEditAllDays() {
+        document.querySelectorAll('input[name="editScheduleDays"]').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+    }
+    
+    // Create a new schedule
+    function createSchedule() {
+        const name = document.getElementById('scheduleName').value;
+        const time = document.getElementById('scheduleTime').value;
+        
+        if (!name || !time) {
+            alert('Please enter a name and time for the schedule.');
+            return;
+        }
+        
+        // Get selected days
+        const dayCheckboxes = document.querySelectorAll('input[name="scheduleDays"]:checked');
+        if (dayCheckboxes.length === 0) {
+            alert('Please select at least one day for the schedule.');
+            return;
+        }
+        
+        const days = Array.from(dayCheckboxes).map(cb => cb.value);
+        
+        // Get actions
+        const actions = [];
+        document.querySelectorAll('#scheduleActions .action-item').forEach(item => {
+            const type = item.querySelector('.action-type').value;
+            const stateSelect = item.querySelector('.action-state');
+            const state = { on: stateSelect.value === 'on' };
+            
+            // Add brightness if turning on
+            if (state.on) {
+                state.brightness = parseInt(item.querySelector('.action-brightness').value);
+            }
+            
+            const action = { type, state };
+            
+            if (type === 'light') {
+                action.light_id = item.querySelector('.action-light').value;
+            } else {
+                action.group_id = item.querySelector('.action-group').value;
+            }
+            
+            actions.push(action);
+        });
+        
+        if (actions.length === 0) {
+            alert('Please add at least one action to the schedule.');
+            return;
+        }
+        
+        // Create the schedule
+        fetch('/api/schedules', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name,
+                time,
+                days,
+                actions,
+                enabled: true
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createScheduleModal'));
+                modal.hide();
+                
+                // Show success message and reload
+                showAlert('Schedule created successfully!', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                alert('Error creating schedule: ' + data.error);
+            }
+        });
+    }
+    
+    // Add a new action to the edit schedule form
+    function addEditAction() {
+        // Clone the template from the create form and adapt it
+        const template = document.querySelector('#scheduleActions .action-item').cloneNode(true);
+        
+        // Reset values in the cloned template
+        template.querySelectorAll('select').forEach(select => {
+            select.selectedIndex = 0;
+        });
+        
+        // Add the new action item
+        document.getElementById('editScheduleActions').appendChild(template);
+    }
+    
+    // Edit an existing schedule
+    function editSchedule(scheduleId) {
+        // Fetch schedule data
+        fetch(`/api/schedules/${scheduleId}`)
+            .then(response => response.json())
+            .then(schedule => {
+                // Populate the form
+                document.getElementById('editScheduleId').value = scheduleId;
+                document.getElementById('editScheduleName').value = schedule.name;
+                document.getElementById('editScheduleTime').value = schedule.time;
+                
+                // Set days
+                document.querySelectorAll('input[name="editScheduleDays"]').forEach(checkbox => {
+                    checkbox.checked = schedule.days.includes(checkbox.value);
+                });
+                
+                // Clear existing actions
+                document.getElementById('editScheduleActions').innerHTML = '';
+                
+                // Add actions
+                schedule.actions.forEach(action => {
+                    // Clone the template from the create form
+                    const template = document.querySelector('#scheduleActions .action-item').cloneNode(true);
+                    
+                    // Set action type
+                    const typeSelect = template.querySelector('.action-type');
+                    typeSelect.value = action.type;
+                    updateActionFields(typeSelect);
+                    
+                    // Set target (light or group)
+                    if (action.type === 'light') {
+                        template.querySelector('.action-light').value = action.light_id;
+                    } else {
+                        template.querySelector('.action-group').value = action.group_id;
+                    }
+                    
+                    // Set state
+                    const stateSelect = template.querySelector('.action-state');
+                    stateSelect.value = action.state.on ? 'on' : 'off';
+                    updateBrightnessField(stateSelect);
+                    
+                    // Set brightness if applicable
+                    if (action.state.on && action.state.brightness !== undefined) {
+                        template.querySelector('.action-brightness').value = action.state.brightness;
+                    }
+                    
+                    // Add to the form
+                    document.getElementById('editScheduleActions').appendChild(template);
+                });
+                
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('editScheduleModal'));
+                modal.show();
+            });
+    }
+    
+    // Update an existing schedule
+    function updateSchedule() {
+        const scheduleId = document.getElementById('editScheduleId').value;
+        const name = document.getElementById('editScheduleName').value;
+        const time = document.getElementById('editScheduleTime').value;
+        
+        if (!name || !time) {
+            alert('Please enter a name and time for the schedule.');
+            return;
+        }
+        
+        // Get selected days
+        const dayCheckboxes = document.querySelectorAll('input[name="editScheduleDays"]:checked');
+        if (dayCheckboxes.length === 0) {
+            alert('Please select at least one day for the schedule.');
+            return;
+        }
+        
+        const days = Array.from(dayCheckboxes).map(cb => cb.value);
+        
+        // Get actions
+        const actions = [];
+        document.querySelectorAll('#editScheduleActions .action-item').forEach(item => {
+            const type = item.querySelector('.action-type').value;
+            const stateSelect = item.querySelector('.action-state');
+            const state = { on: stateSelect.value === 'on' };
+            
+            // Add brightness if turning on
+            if (state.on) {
+                state.brightness = parseInt(item.querySelector('.action-brightness').value);
+            }
+            
+            const action = { type, state };
+            
+            if (type === 'light') {
+                action.light_id = item.querySelector('.action-light').value;
+            } else {
+                action.group_id = item.querySelector('.action-group').value;
+            }
+            
+            actions.push(action);
+        });
+        
+        if (actions.length === 0) {
+            alert('Please add at least one action to the schedule.');
+            return;
+        }
+        
+        // Update the schedule
+        fetch(`/api/schedules/${scheduleId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name,
+                time,
+                days,
+                actions
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('editScheduleModal'));
+                modal.hide();
+                
+                // Show success message and reload
+                showAlert('Schedule updated successfully!', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                alert('Error updating schedule: ' + data.error);
+            }
+        });
+    }
+    
+    // Delete a schedule
+    function deleteSchedule(scheduleId) {
+        document.getElementById('deleteScheduleId').value = scheduleId;
+        const modal = new bootstrap.Modal(document.getElementById('deleteScheduleModal'));
+        modal.show();
+    }
+    
+    // Confirm delete schedule
+    function confirmDeleteSchedule() {
+        const scheduleId = document.getElementById('deleteScheduleId').value;
+        
+        fetch(`/api/schedules/${scheduleId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close modal and reload
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteScheduleModal'));
+                modal.hide();
+                
+                // Show success message and reload
+                showAlert('Schedule deleted successfully!', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                alert('Error deleting schedule: ' + data.error);
+            }
+        });
+    }
+    
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alerts-container');
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        alertContainer.appendChild(alert);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            alert.classList.remove('show');
+            setTimeout(() => {
+                alertContainer.removeChild(alert);
+            }, 150);
+        }, 5000);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+/* Custom styles for the Smart Light Controller */
+
+body {
+    background-color: #f8f9fa;
+    padding-bottom: 70px; /* For fixed footer */
+}
+
+.card {
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    border-top: 1px solid #e3e3e3;
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.05);
+    z-index: 100;
+}
+
+/* Light controls */
+.form-range::-webkit-slider-thumb {
+    cursor: pointer;
+}
+
+.form-range::-webkit-slider-runnable-track {
+    cursor: pointer;
+}
+
+/* Color buttons */
+.color-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin: 0 5px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.color-btn:hover {
+    transform: scale(1.1);
+}
+
+/* Device cards */
+.device-card-header {
+    transition: background-color 0.3s ease;
+}
+
+/* Animations */
+.fade-enter-active, .fade-leave-active {
+    transition: opacity 0.5s;
+}
+
+.fade-enter, .fade-leave-to {
+    opacity: 0;
+}
+
+/* Alert container position */
+#alerts-container {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    z-index: 1050;
+    max-width: 350px;
+}
+
+/* Make cards responsive */
+@media (max-width: 576px) {
+    .card {
+        margin-bottom: 15px;
+    }
+    
+    #alerts-container {
+        right: 10px;
+        left: 10px;
+        max-width: unset;
+    }
+}

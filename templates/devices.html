@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Smart Light Controller - Devices{% endblock %}
+
+{% block extra_css %}
+<style>
+    .color-preview {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+        vertical-align: middle;
+    }
+    
+    .light-card {
+        transition: all 0.3s ease;
+    }
+    
+    .light-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Devices</h5>
+            </div>
+            <div class="card-body">
+                <h3>Manage Your Smart Lights</h3>
+                <p class="lead">Control your smart lights individually and adjust their settings.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if lights %}
+    <div class="row">
+        {% for light_id, light in lights.items() %}
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div id="light-{{ light_id }}" class="card light-card">
+                    <div class="card-header d-flex justify-content-between align-items-center {% if light.state.on %}bg-light{% else %}bg-dark text-white{% endif %}">
+                        <h5 class="card-title mb-0">{{ light.name }}</h5>
+                        <div class="form-check form-switch">
+                            <input 
+                                class="form-check-input" 
+                                type="checkbox" 
+                                role="switch" 
+                                id="switch-{{ light_id }}" 
+                                {% if light.state.on %}checked{% endif %}
+                                data-light-id="{{ light_id }}"
+                                onchange="toggleLight(this)"
+                            >
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <i class="bi bi-lightbulb{% if light.state.on %}-fill text-warning{% endif %}"></i>
+                            <span class="badge {% if light.state.reachable %}bg-success{% else %}bg-danger{% endif %} ms-2">
+                                {% if light.state.reachable %}Online{% else %}Offline{% endif %}
+                            </span>
+                            {% if 'protocol' in light %}
+                                <span class="badge bg-info ms-2">{{ light.protocol|upper }}</span>
+                            {% endif %}
+                            {% if 'model' in light %}
+                                <span class="badge bg-secondary ms-2">{{ light.model }}</span>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="brightness-{{ light_id }}" class="form-label">Brightness</label>
+                            <input 
+                                type="range" 
+                                class="form-range" 
+                                min="0" 
+                                max="100" 
+                                value="{{ light.state.brightness }}" 
+                                id="brightness-{{ light_id }}" 
+                                data-light-id="{{ light_id }}"
+                                onchange="setBrightness(this)"
+                            >
+                            <div class="d-flex justify-content-between">
+                                <small>0%</small>
+                                <small>{{ light.state.brightness }}%</small>
+                                <small>100%</small>
+                            </div>
+                        </div>
+                        
+                        {% if 'color_temp' in light.state %}
+                            <div class="mb-3">
+                                <label for="temp-{{ light_id }}" class="form-label">Color Temperature</label>
+                                <input 
+                                    type="range" 
+                                    class="form-range" 
+                                    min="2000" 
+                                    max="6500" 
+                                    value="{{ light.state.color_temp }}" 
+                                    id="temp-{{ light_id }}" 
+                                    data-light-id="{{ light_id }}"
+                                    onchange="setColorTemp(this)"
+                                >
+                                <div class="d-flex justify-content-between">
+                                    <small class="text-warning">Warm</small>
+                                    <small>{{ light.state.color_temp }}K</small>
+                                    <small class="text-primary">Cool</small>
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {% if 'hue' in light.state and 'saturation' in light.state %}
+                            <div class="mb-3">
+                                <label class="form-label">Color</label>
+                                <div>
+                                    {% for color_name, hue in [
+                                        ('Red', 0),
+                                        ('Orange', 30),
+                                        ('Yellow', 60),
+                                        ('Green', 120),
+                                        ('Teal', 180),
+                                        ('Blue', 240),
+                                        ('Purple', 270),
+                                        ('Pink', 300)
+                                    ] %}
+                                        <button 
+                                            class="btn btn-sm rounded-circle mb-1" 
+                                            style="width: 30px; height: 30px; background-color: hsl({{ hue }}, 100%, 50%);"
+                                            title="{{ color_name }}"
+                                            data-light-id="{{ light_id }}"
+                                            data-hue="{{ hue }}"
+                                            onclick="setColor(this)"
+                                        ></button>
+                                    {% endfor %}
+                                    <button 
+                                        class="btn btn-sm btn-light border rounded-circle mb-1" 
+                                        style="width: 30px; height: 30px;"
+                                        title="White"
+                                        data-light-id="{{ light_id }}"
+                                        data-hue="0"
+                                        data-saturation="0"
+                                        onclick="setColor(this, true)"
+                                    >
+                                        <i class="bi bi-sun-fill text-warning" style="font-size: 0.8rem;"></i>
+                                    </button>
+                                </div>
+                                {% if 'rgb_color' in light.state %}
+                                    <div class="mt-2">
+                                        <span class="color-preview" style="background-color: rgb{{ light.state.rgb_color }};"></span>
+                                        <small>H: {{ light.state.hue }}°, S: {{ light.state.saturation }}%</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        
+                        <div class="mt-3">
+                            <button 
+                                class="btn btn-sm btn-outline-primary"
+                                data-light-id="{{ light_id }}"
+                                onclick="refreshLight(this)"
+                            >
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle-fill"></i> No lights discovered.
+        Click the Discover button in the navigation bar to find lights on your network.
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleLight(element) {
+        const lightId = element.dataset.lightId;
+        const isOn = element.checked;
+        
+        fetch(`/api/lights/${lightId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ on: isOn })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const header = document.querySelector(`#light-${lightId} .card-header`);
+                const icon = document.querySelector(`#light-${lightId} .bi-lightbulb`);
+                
+                if (isOn) {
+                    header.classList.remove('bg-dark', 'text-white');
+                    header.classList.add('bg-light');
+                    
+                    if (icon) {
+                        icon.classList.add('bi-lightbulb-fill', 'text-warning');
+                        icon.classList.remove('bi-lightbulb');
+                    }
+                } else {
+                    header.classList.add('bg-dark', 'text-white');
+                    header.classList.remove('bg-light');
+                    
+                    if (icon) {
+                        icon.classList.remove('bi-lightbulb-fill', 'text-warning');
+                        icon.classList.add('bi-lightbulb');
+                    }
+                }
+            }
+        });
+    }
+    
+    function setBrightness(element) {
+        const lightId = element.dataset.lightId;
+        const brightness = parseInt(element.value);
+        
+        fetch(`/api/lights/${lightId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ brightness: brightness })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update display
+                const brightnessValue = document.querySelector(`#brightness-${lightId} + div small:nth-child(2)`);
+                if (brightnessValue) {
+                    brightnessValue.textContent = `${brightness}%`;
+                }
+            }
+        });
+    }
+    
+    function setColorTemp(element) {
+        const lightId = element.dataset.lightId;
+        const colorTemp = parseInt(element.value);
+        
+        fetch(`/api/lights/${lightId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ color_temp: colorTemp })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update display
+                const tempValue = document.querySelector(`#temp-${lightId} + div small:nth-child(2)`);
+                if (tempValue) {
+                    tempValue.textContent = `${colorTemp}K`;
+                }
+            }
+        });
+    }
+    
+    function setColor(element, isWhite = false) {
+        const lightId = element.dataset.lightId;
+        const hue = parseInt(element.dataset.hue);
+        const saturation = isWhite ? 0 : 100;
+        
+        fetch(`/api/lights/${lightId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                hue: hue,
+                saturation: saturation
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // We'd update the color preview here, but we'll need to reload to get the correct RGB values
+                setTimeout(() => {
+                    refreshLight(element);
+                }, 300);
+            }
+        });
+    }
+    
+    function refreshLight(element) {
+        const lightId = element.dataset.lightId;
+        
+        // Simply reload the page for now
+        // In a real app, we'd use AJAX to update just this light
+        window.location.reload();
+    }
+</script>
+{% endblock %}
