@@ -77,7 +77,7 @@ args = "python web_app.py"
 waitForPort = 5000
 
 [deployment]
-run = ["sh", "-c", "QT_QPA_PLATFORM=offscreen python main.py"]
+run = ["sh", "-c", "python web_app.py"]
 
 [[ports]]
 localPort = 5000
