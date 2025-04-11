@@ -57,8 +57,8 @@ def main():
                 self.end_headers()
                 self.wfile.write(b"Smart Light Controller Running")
         
-        with socketserver.TCPServer(("0.0.0.0", 5000), Handler) as httpd:
-            logger.info("Web server running on port 5000")
+        with socketserver.TCPServer(("0.0.0.0", 5001), Handler) as httpd:
+            logger.info("Web server running on port 5001")
             httpd.serve_forever()
     
     server_thread = threading.Thread(target=run_server, daemon=True)

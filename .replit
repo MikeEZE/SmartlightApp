@@ -4,7 +4,7 @@ modules = ["python-3.11"]
 channel = "stable-24_05"
 
 [workflows]
-runButton = "Project"
+runButton = "Smart Light Controller Dev"
 
 [[workflows.workflow]]
 name = "Project"
@@ -43,6 +43,15 @@ agentRequireRestartOnSave = false
 
 [[workflows.workflow.tasks]]
 task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "QT_QPA_PLATFORM=offscreen python main.py"
+
+[[workflows.workflow]]
+name = "Smart Light Controller Dev"
+author = 31197304
+mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
