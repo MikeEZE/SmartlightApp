@@ -57,11 +57,45 @@
                         
                         <div class="col-md-6">
                             <label class="form-label">Global Brightness</label>
-                            <input type="range" class="form-range" id="globalBrightness" min="0" max="100" value="100" onchange="setGlobalBrightness(this.value)">
+                            <input type="range" class="form-range" id="globalBrightness" min="0" max="100" value="100" oninput="updateBrightnessPreview(this.value)" onchange="setGlobalBrightness(this.value)">
                             <div class="d-flex justify-content-between">
                                 <small>0%</small>
                                 <small id="brightnessValue">100%</small>
                                 <small>100%</small>
+                            </div>
+                            <div id="brightnessPreview" class="brightness-preview mt-2" style="background-color: rgb(255,255,255); height: 20px; border-radius: 4px;"></div>
+                        </div>
+                        
+                        <!-- Color Picker Section -->
+                        <div class="col-12 mt-3">
+                            <label class="form-label">Color Selection</label>
+                            <div class="d-flex flex-wrap color-palette">
+                                <div class="color-pick me-2 mb-2" data-color="#FF0000" style="background-color: #FF0000;" onclick="selectColor(this, '#FF0000')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#FF7F00" style="background-color: #FF7F00;" onclick="selectColor(this, '#FF7F00')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#FFFF00" style="background-color: #FFFF00;" onclick="selectColor(this, '#FFFF00')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#00FF00" style="background-color: #00FF00;" onclick="selectColor(this, '#00FF00')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#0000FF" style="background-color: #0000FF;" onclick="selectColor(this, '#0000FF')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#4B0082" style="background-color: #4B0082;" onclick="selectColor(this, '#4B0082')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#9400D3" style="background-color: #9400D3;" onclick="selectColor(this, '#9400D3')"></div>
+                                <div class="color-pick me-2 mb-2" data-color="#FFFFFF" style="background-color: #FFFFFF; border: 1px solid #ccc;" onclick="selectColor(this, '#FFFFFF')"></div>
+                            </div>
+                            <div class="mt-2">
+                                <label for="customColorInput" class="form-label">Custom Color</label>
+                                <div class="input-group">
+                                    <input type="color" class="form-control form-control-color" id="customColorInput" value="#563d7c" onchange="updateCustomColor(this.value)">
+                                    <input type="text" class="form-control" id="colorHexValue" value="#563d7c" placeholder="#RRGGBB">
+                                    <button class="btn btn-primary" type="button" onclick="applyCustomColor()">Apply</button>
+                                </div>
+                            </div>
+                            
+                            <!-- Color Preview Box -->
+                            <div class="mt-3 p-3 text-center color-preview-box" id="colorPreviewBox">
+                                <div id="colorPreview" style="height: 100px; background-color: #563d7c; border-radius: 8px;">
+                                    <div class="py-4">
+                                        <h5 class="text-light mb-0" id="colorPreviewText">Current Color</h5>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-success mt-2" onclick="applyColorToAll()">Apply to All Lights</button>
                             </div>
                         </div>
                         
@@ -190,6 +224,10 @@
 
 {% block extra_js %}
 <script>
+    // Current color state
+    let currentColor = "#563d7c";
+    let currentSelectedElement = null;
+    
     // Handle All Lights On/Off
     document.getElementById('allOnBtn').addEventListener('click', function() {
         {% for light_id, light in lights.items() %}
@@ -293,6 +331,10 @@
         // Create a unique ID for the new light
         const lightId = 'custom_' + new Date().getTime();
         
+        // Get current color values for the new light
+        const rgbColor = hexToRgb(currentColor);
+        const hslColor = rgbToHsl(rgbColor.r, rgbColor.g, rgbColor.b);
+        
         // Send request to create light (would go to server)
         fetch('/api/lights', {
             method: 'POST',
@@ -306,6 +348,9 @@
                     on: true,
                     brightness: 100,
                     color_temp: 3500,
+                    hue: Math.round(hslColor.h * 360),
+                    saturation: Math.round(hslColor.s * 100),
+                    rgb_color: `(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b})`,
                     reachable: true
                 }
             })
@@ -314,6 +359,10 @@
         .then(data => {
             if (data.success) {
                 showFeedback(`Added new light: ${lightName}`, 'success');
+                
+                // Show visual confirmation
+                showColorFeedback(currentColor, `Light "${lightName}" added with this color!`);
+                
                 setTimeout(() => {
                     window.location.reload();
                 }, 1000);
@@ -325,6 +374,9 @@
             // For demo purposes: if the API doesn't exist yet, show a simulated success
             showFeedback(`Added new light: ${lightName} (simulated)`, 'success');
             
+            // Show visual confirmation
+            showColorFeedback(currentColor, `Light "${lightName}" added with this color!`);
+            
             // Create a new light element and add to the list
             const listGroup = document.querySelector('.list-group');
             if (listGroup) {
@@ -333,7 +385,7 @@
                 newLight.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center new-item';
                 newLight.innerHTML = `
                     <div>
-                        <i class="bi bi-lightbulb-fill text-warning"></i>
+                        <i class="bi bi-lightbulb-fill" style="color: ${currentColor};"></i>
                         ${lightName}
                         <span class="badge bg-success ms-2">Online</span>
                         <span class="badge bg-info ms-1">User Added</span>
@@ -364,10 +416,18 @@
         document.getElementById('userLightName').value = '';
     }
     
-    // Set global brightness
-    function setGlobalBrightness(value) {
+    // Update brightness preview as the slider moves
+    function updateBrightnessPreview(value) {
         document.getElementById('brightnessValue').textContent = `${value}%`;
         
+        // Calculate brightness as RGB value (255 * percentage)
+        const brightness = Math.round(255 * (value / 100));
+        document.getElementById('brightnessPreview').style.backgroundColor = 
+            `rgb(${brightness}, ${brightness}, ${brightness})`;
+    }
+    
+    // Set global brightness
+    function setGlobalBrightness(value) {
         showFeedback(`Setting all lights to ${value}% brightness...`);
         
         {% for light_id, light in lights.items() %}
@@ -386,6 +446,137 @@
         }, 800);
     }
     
+    // Select a color from the palette
+    function selectColor(element, color) {
+        // Update current color
+        currentColor = color;
+        
+        // Update selected status
+        if (currentSelectedElement) {
+            currentSelectedElement.classList.remove('selected');
+        }
+        element.classList.add('selected');
+        currentSelectedElement = element;
+        
+        // Update color preview
+        document.getElementById('colorPreview').style.backgroundColor = color;
+        document.getElementById('customColorInput').value = color;
+        document.getElementById('colorHexValue').value = color;
+        
+        // Update color preview text (white or black based on brightness)
+        const rgb = hexToRgb(color);
+        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+        document.getElementById('colorPreviewText').style.color = brightness > 128 ? '#000' : '#fff';
+        
+        // Show feedback
+        showFeedback(`Color selected: ${color}`, 'info');
+    }
+    
+    // Update custom color when color picker changes
+    function updateCustomColor(color) {
+        document.getElementById('colorHexValue').value = color;
+        document.getElementById('colorPreview').style.backgroundColor = color;
+        currentColor = color;
+        
+        // Deselect any currently selected color
+        if (currentSelectedElement) {
+            currentSelectedElement.classList.remove('selected');
+            currentSelectedElement = null;
+        }
+        
+        // Update color preview text (white or black based on brightness)
+        const rgb = hexToRgb(color);
+        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+        document.getElementById('colorPreviewText').style.color = brightness > 128 ? '#000' : '#fff';
+    }
+    
+    // Apply the custom color from input field
+    function applyCustomColor() {
+        const colorValue = document.getElementById('colorHexValue').value;
+        if (colorValue.match(/^#[0-9A-F]{6}$/i)) {
+            currentColor = colorValue;
+            document.getElementById('colorPreview').style.backgroundColor = colorValue;
+            document.getElementById('customColorInput').value = colorValue;
+            showFeedback(`Custom color applied: ${colorValue}`, 'success');
+            
+            // Update color preview text (white or black based on brightness)
+            const rgb = hexToRgb(colorValue);
+            const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+            document.getElementById('colorPreviewText').style.color = brightness > 128 ? '#000' : '#fff';
+            
+            // Deselect any currently selected color
+            if (currentSelectedElement) {
+                currentSelectedElement.classList.remove('selected');
+                currentSelectedElement = null;
+            }
+        } else {
+            showFeedback('Please enter a valid hex color (e.g. #FF0000)', 'warning');
+        }
+    }
+    
+    // Apply the selected color to all lights
+    function applyColorToAll() {
+        // Convert hex to HSL values for the API
+        const rgb = hexToRgb(currentColor);
+        const hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+        
+        // Show visual confirmation
+        showColorFeedback(currentColor, "Applying this color to all lights!");
+        
+        // Apply to all lights
+        {% for light_id, light in lights.items() %}
+            fetch('/api/lights/{{ light_id }}/state', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    hue: Math.round(hsl.h * 360),
+                    saturation: Math.round(hsl.s * 100)
+                })
+            });
+        {% endfor %}
+        
+        // Wait a bit then show success
+        setTimeout(() => {
+            showFeedback(`Color ${currentColor} applied to all lights`, 'success');
+            
+            // You could reload here, but we'll just update the UI for a smoother experience
+            document.querySelectorAll('.bi-lightbulb-fill').forEach(icon => {
+                icon.style.color = currentColor;
+            });
+        }, 800);
+    }
+    
+    // Show a visual feedback for color changes
+    function showColorFeedback(color, message) {
+        // Remove any existing feedback
+        const existingFeedback = document.querySelector('.action-feedback');
+        if (existingFeedback) {
+            existingFeedback.remove();
+        }
+        
+        // Create new feedback element
+        const feedback = document.createElement('div');
+        feedback.className = 'action-feedback';
+        feedback.style.backgroundColor = color;
+        
+        // Set text color based on brightness
+        const rgb = hexToRgb(color);
+        const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+        feedback.style.color = brightness > 128 ? '#000' : '#fff';
+        
+        feedback.textContent = message;
+        document.body.appendChild(feedback);
+        
+        // Remove after animation completes
+        setTimeout(() => {
+            if (feedback.parentNode) {
+                feedback.parentNode.removeChild(feedback);
+            }
+        }, 3000);
+    }
+    
     // Show feedback message
     function showFeedback(message, type = 'info') {
         const feedback = document.getElementById('userFeedback');
@@ -399,8 +590,59 @@
         }, 5000);
     }
     
-    // Initialize tooltip for better UX
+    // Helper: Convert hex color to RGB
+    function hexToRgb(hex) {
+        // Remove # if present
+        hex = hex.replace(/^#/, '');
+        
+        // Parse hex values
+        const bigint = parseInt(hex, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        
+        return { r, g, b };
+    }
+    
+    // Helper: Convert RGB to HSL
+    function rgbToHsl(r, g, b) {
+        r /= 255;
+        g /= 255;
+        b /= 255;
+        
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        let h, s, l = (max + min) / 2;
+        
+        if (max === min) {
+            h = s = 0; // achromatic
+        } else {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            
+            h /= 6;
+        }
+        
+        return { h, s, l };
+    }
+    
+    // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        // Set initial brightness preview
+        updateBrightnessPreview(100);
+        
+        // Select the first color by default
+        const firstColorElement = document.querySelector('.color-pick');
+        if (firstColorElement) {
+            selectColor(firstColorElement, firstColorElement.dataset.color);
+        }
+        
         // Check if we have tooltip functionality from Bootstrap
         if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
             const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
