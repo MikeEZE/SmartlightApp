@@ -49,4 +49,8 @@ task = "shell.exec"
 args = "QT_QPA_PLATFORM=offscreen python main.py"
 
 [deployment]
-run = ["sh", "-c", "pip install PySide6 requests && python main.py"]
+run = ["sh", "-c", "QT_QPA_PLATFORM=offscreen python main.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
