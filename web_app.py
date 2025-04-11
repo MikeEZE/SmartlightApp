@@ -257,10 +257,52 @@ def schedules():
                            lights=app_data['lights'],
                            groups=app_data['groups'])
 
-@app.route('/api/lights')
+@app.route('/api/lights', methods=['GET', 'POST'])
 def get_lights():
-    """API endpoint to get all lights"""
-    return jsonify(app_data['lights'])
+    """API endpoint to get all lights or create a new virtual light"""
+    if request.method == 'GET':
+        return jsonify(app_data['lights'])
+    
+    # POST method for creating a new virtual light
+    data = request.json
+    if 'name' not in data:
+        return jsonify({'error': 'Light name is required'}), 400
+    
+    # Generate a unique ID
+    light_id = f"virtual_{len(app_data['lights']) + 1}_{int(datetime.now().timestamp())}"
+    
+    # Create default state if not provided
+    if 'state' not in data:
+        data['state'] = {
+            'on': True,
+            'brightness': 100,
+            'color_temp': 3500,
+            'reachable': True
+        }
+    
+    # Set protocol to virtual if not specified
+    if 'protocol' not in data:
+        data['protocol'] = 'virtual'
+    
+    # Add metadata
+    data['id'] = light_id
+    data['user_created'] = True
+    
+    # Add the light to app data
+    app_data['lights'][light_id] = data
+    
+    # If using 'virtual' protocol, add to a special section in config
+    if 'virtual' not in config['devices']:
+        config['devices']['virtual'] = []
+    
+    config['devices']['virtual'].append(data)
+    save_config(config)
+    
+    return jsonify({
+        'success': True, 
+        'id': light_id,
+        'message': f"Created new virtual light: {data['name']}"
+    })
 
 @app.route('/api/lights/<light_id>')
 def get_light(light_id):
@@ -286,13 +328,15 @@ def set_light_state(light_id):
         if 'saturation' in data:
             app_data['lights'][light_id]['state']['saturation'] = data['saturation']
         
-        # Update config
-        if app_data['lights'][light_id]['protocol'] == 'lifx':
+        # Update config based on protocol
+        protocol = app_data['lights'][light_id].get('protocol', '')
+        
+        if protocol == 'lifx':
             for i, light in enumerate(config['devices']['lifx']):
                 if light['id'] == light_id:
                     config['devices']['lifx'][i]['state'] = app_data['lights'][light_id]['state']
                     break
-        elif app_data['lights'][light_id]['protocol'] == 'hue':
+        elif protocol == 'hue':
             # Extract bridge and light ID
             bridge_id = app_data['lights'][light_id]['bridge_id']
             actual_light_id = light_id.split('_')[-1]
@@ -304,9 +348,24 @@ def set_light_state(light_id):
                             config['devices']['hue'][i]['lights'][j]['state'] = app_data['lights'][light_id]['state']
                             break
                     break
+        elif protocol == 'virtual':
+            # Handle virtual lights created by the user
+            if 'virtual' in config['devices']:
+                for i, light in enumerate(config['devices']['virtual']):
+                    if light['id'] == light_id:
+                        config['devices']['virtual'][i]['state'] = app_data['lights'][light_id]['state']
+                        break
+        
+        # Log changes for debugging
+        logger.info(f"Light state updated: {light_id} - Protocol: {protocol}")
+        logger.info(f"New state: {app_data['lights'][light_id]['state']}")
         
         save_config(config)
-        return jsonify({'success': True})
+        return jsonify({
+            'success': True,
+            'light_id': light_id,
+            'state': app_data['lights'][light_id]['state']
+        })
     return jsonify({'error': 'Light not found'}), 404
 
 @app.route('/api/groups')

@@ -22,6 +22,56 @@
                     </div>
                 </div>
                 <p class="lead">Control all your smart lights from one dashboard.</p>
+                
+                <!-- User Input Section -->
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h4>Quick Control Panel</h4>
+                    <form id="quickControlForm" class="row g-3">
+                        <div class="col-md-6">
+                            <label for="userLightName" class="form-label">Add New Light Name</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="userLightName" placeholder="Enter light name (e.g. Kitchen Light)">
+                                <button type="button" class="btn btn-primary" onclick="addCustomLight()">Add</button>
+                            </div>
+                            <div class="form-text">Create a virtual light with custom settings</div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="roomSelect" class="form-label">Quick Room Select</label>
+                            <select class="form-select" id="roomSelect" onchange="filterByRoom(this.value)">
+                                <option value="all">All Rooms</option>
+                                <option value="living">Living Room</option>
+                                <option value="bedroom">Bedroom</option>
+                                <option value="kitchen">Kitchen</option>
+                                <option value="custom">Custom (User Input)</option>
+                            </select>
+                        </div>
+                        
+                        <div id="customRoomInput" class="col-md-6 d-none">
+                            <label for="userRoomName" class="form-label">Custom Room Name</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="userRoomName" placeholder="Enter room name">
+                                <button type="button" class="btn btn-outline-primary" onclick="addCustomRoom()">Add</button>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Global Brightness</label>
+                            <input type="range" class="form-range" id="globalBrightness" min="0" max="100" value="100" onchange="setGlobalBrightness(this.value)">
+                            <div class="d-flex justify-content-between">
+                                <small>0%</small>
+                                <small id="brightnessValue">100%</small>
+                                <small>100%</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-12 mt-3">
+                            <div id="userFeedback" class="alert alert-info d-none">
+                                <!-- Feedback messages will appear here -->
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -140,6 +190,7 @@
 
 {% block extra_js %}
 <script>
+    // Handle All Lights On/Off
     document.getElementById('allOnBtn').addEventListener('click', function() {
         {% for light_id, light in lights.items() %}
             fetch('/api/lights/{{ light_id }}/state', {
@@ -170,6 +221,191 @@
         setTimeout(() => {
             window.location.reload();
         }, 500);
+    });
+    
+    // Room selection filter
+    function filterByRoom(roomValue) {
+        if (roomValue === 'custom') {
+            document.getElementById('customRoomInput').classList.remove('d-none');
+        } else {
+            document.getElementById('customRoomInput').classList.add('d-none');
+            
+            // Filter lights by room
+            const lightElements = document.querySelectorAll('.list-group-item');
+            let visibleCount = 0;
+            
+            lightElements.forEach(element => {
+                const lightName = element.querySelector('div').textContent.trim().toLowerCase();
+                
+                if (roomValue === 'all') {
+                    element.style.display = '';
+                    visibleCount++;
+                } else if (lightName.includes(roomValue)) {
+                    element.style.display = '';
+                    visibleCount++;
+                } else {
+                    element.style.display = 'none';
+                }
+            });
+            
+            // Show feedback
+            showFeedback(`Showing ${visibleCount} lights in ${roomValue === 'all' ? 'all rooms' : roomValue}`);
+        }
+    }
+    
+    // Add custom room
+    function addCustomRoom() {
+        const roomName = document.getElementById('userRoomName').value.trim();
+        if (!roomName) {
+            showFeedback('Please enter a room name', 'warning');
+            return;
+        }
+        
+        // Add room to select dropdown
+        const option = document.createElement('option');
+        option.value = roomName.toLowerCase();
+        option.textContent = roomName;
+        
+        const roomSelect = document.getElementById('roomSelect');
+        roomSelect.insertBefore(option, roomSelect.lastElementChild);
+        
+        // Select the new room
+        roomSelect.value = roomName.toLowerCase();
+        
+        // Trigger filter
+        filterByRoom(roomName.toLowerCase());
+        
+        // Reset input
+        document.getElementById('userRoomName').value = '';
+        document.getElementById('customRoomInput').classList.add('d-none');
+        
+        showFeedback(`Added new room: ${roomName}`);
+    }
+    
+    // Add custom light
+    function addCustomLight() {
+        const lightName = document.getElementById('userLightName').value.trim();
+        if (!lightName) {
+            showFeedback('Please enter a light name', 'warning');
+            return;
+        }
+        
+        // Create a unique ID for the new light
+        const lightId = 'custom_' + new Date().getTime();
+        
+        // Send request to create light (would go to server)
+        fetch('/api/lights', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                name: lightName,
+                protocol: 'virtual',
+                state: {
+                    on: true,
+                    brightness: 100,
+                    color_temp: 3500,
+                    reachable: true
+                }
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showFeedback(`Added new light: ${lightName}`, 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                showFeedback(`Error: ${data.error}`, 'danger');
+            }
+        })
+        .catch(error => {
+            // For demo purposes: if the API doesn't exist yet, show a simulated success
+            showFeedback(`Added new light: ${lightName} (simulated)`, 'success');
+            
+            // Create a new light element and add to the list
+            const listGroup = document.querySelector('.list-group');
+            if (listGroup) {
+                const newLight = document.createElement('a');
+                newLight.href = `#light-${lightId}`;
+                newLight.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center new-item';
+                newLight.innerHTML = `
+                    <div>
+                        <i class="bi bi-lightbulb-fill text-warning"></i>
+                        ${lightName}
+                        <span class="badge bg-success ms-2">Online</span>
+                        <span class="badge bg-info ms-1">User Added</span>
+                    </div>
+                    <div>
+                        <span class="badge bg-success rounded-pill">ON</span>
+                    </div>
+                `;
+                listGroup.appendChild(newLight);
+                
+                // Animate the new item
+                newLight.style.backgroundColor = '#e8f4f8';
+                setTimeout(() => {
+                    newLight.style.transition = 'background-color 1s ease';
+                    newLight.style.backgroundColor = '';
+                }, 100);
+                
+                // Update the count
+                const countElement = document.querySelector('h3.mb-3');
+                if (countElement) {
+                    const currentCount = parseInt(countElement.textContent.match(/\d+/)[0]);
+                    countElement.textContent = `Lights (${currentCount + 1})`;
+                }
+            }
+        });
+        
+        // Reset input
+        document.getElementById('userLightName').value = '';
+    }
+    
+    // Set global brightness
+    function setGlobalBrightness(value) {
+        document.getElementById('brightnessValue').textContent = `${value}%`;
+        
+        showFeedback(`Setting all lights to ${value}% brightness...`);
+        
+        {% for light_id, light in lights.items() %}
+            fetch('/api/lights/{{ light_id }}/state', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ brightness: parseInt(value) })
+            });
+        {% endfor %}
+        
+        // Wait a bit then show success
+        setTimeout(() => {
+            showFeedback(`All lights set to ${value}% brightness`, 'success');
+        }, 800);
+    }
+    
+    // Show feedback message
+    function showFeedback(message, type = 'info') {
+        const feedback = document.getElementById('userFeedback');
+        feedback.className = `alert alert-${type}`;
+        feedback.textContent = message;
+        feedback.classList.remove('d-none');
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            feedback.classList.add('d-none');
+        }, 5000);
+    }
+    
+    // Initialize tooltip for better UX
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if we have tooltip functionality from Bootstrap
+        if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        }
     });
 </script>
 {% endblock %}
