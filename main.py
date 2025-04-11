@@ -37,11 +37,32 @@ def main():
     
     # Set environment variables for Qt
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"  # Force offscreen rendering
     
     # Create Qt application
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setStyle("Fusion")  # Use Fusion style for consistent look across platforms
+    
+    # Start a simple web server for deployment access
+    import threading
+    import http.server
+    import socketserver
+    
+    def run_server():
+        class Handler(http.server.SimpleHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html')
+                self.end_headers()
+                self.wfile.write(b"Smart Light Controller Running")
+        
+        with socketserver.TCPServer(("0.0.0.0", 5000), Handler) as httpd:
+            logger.info("Web server running on port 5000")
+            httpd.serve_forever()
+    
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
     
     # Load application configuration
     config_manager = ConfigManager()
