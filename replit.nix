@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.xcb-util-cursor
     pkgs.dbus
     pkgs.zstd
     pkgs.freetype

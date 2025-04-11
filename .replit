@@ -46,7 +46,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "QT_QPA_PLATFORM=offscreen python main.py"
 
 [deployment]
 run = ["sh", "-c", "pip install PySide6 requests && python main.py"]
