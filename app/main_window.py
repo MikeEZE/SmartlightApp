@@ -6,7 +6,7 @@ import logging
 import sys
 from PySide6.QtWidgets import (
     QMainWindow, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout, 
-    QPushButton, QLabel, QMessageBox, QAction, QMenu, QToolBar,
+    QPushButton, QLabel, QMessageBox, QMenu, QToolBar,
     QStatusBar, QSplitter, QScrollArea, QFrame
 )
 from PySide6.QtCore import Qt, QTimer, QSize, Slot, Signal
