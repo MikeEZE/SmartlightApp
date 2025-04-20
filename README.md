@@ -83,3 +83,4 @@ Configuration is stored in `~/.smart_light_controller/config.json` and includes:
 ## License
 
 MIT License# SmartlightApp
+# MichaelEZE
